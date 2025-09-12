@@ -24,6 +24,9 @@ type BillingDialogProps = {
   vehicle?: Vehicle;
 };
 
+// Simulate an average charging rate in kWh per minute.
+const AVG_CHARGING_RATE_KWH_PER_MINUTE = 0.3; 
+
 export default function BillingDialog({ open, onOpenChange, station, driver, vehicle }: BillingDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ledgerId, setLedgerId] = useState<string | null>(null);
@@ -32,11 +35,17 @@ export default function BillingDialog({ open, onOpenChange, station, driver, veh
   const billingDetails = useMemo(() => {
     if (!driver || !station || !vehicle) return null;
 
-    const kWhDelivered = Math.round(Math.random() * (vehicle.capacityKWh * 0.8)) + 5; // Placeholder logic
+    const startTime = new Date(driver.joinedAt);
+    const endTime = new Date();
+    const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+
+    // Calculate kWh delivered based on duration, capped by vehicle capacity.
+    const calculatedKWh = durationMinutes * AVG_CHARGING_RATE_KWH_PER_MINUTE;
+    const kWhDelivered = Math.min(calculatedKWh, vehicle.capacityKWh);
+
     const cost = kWhDelivered * station.pricePerKWh;
     const platformFee = cost * 0.05; // 5% partner fee
     const totalAmount = cost + platformFee;
-    const endTime = new Date().toISOString();
 
     return {
       kWhDelivered,
@@ -45,7 +54,7 @@ export default function BillingDialog({ open, onOpenChange, station, driver, veh
       platformFee,
       totalAmount,
       startTime: driver.joinedAt,
-      endTime,
+      endTime: endTime.toISOString(),
     };
   }, [driver, station, vehicle]);
   
