@@ -8,6 +8,7 @@ export interface QueueEntry {
   joinedAt: string;
   userId: string;
   vehicle: string;
+  status: 'charging' | 'waiting';
 }
 
 export interface Station {
