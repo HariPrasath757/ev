@@ -1,3 +1,22 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "station-1",
+      "description": "A modern EV charging station at night in a city.",
+      "imageUrl": "https://picsum.photos/seed/101/600/400",
+      "imageHint": "electric car charging"
+    },
+    {
+      "id": "station-2",
+      "description": "EV chargers in a covered parking garage.",
+      "imageUrl": "https://picsum.photos/seed/102/600/400",
+      "imageHint": "urban street night"
+    },
+    {
+      "id": "station-3",
+      "description": "A row of EV chargers in front of a modern building.",
+      "imageUrl": "https://picsum.photos/seed/103/600/400",
+      "imageHint": "modern building"
+    }
+  ]
 }
