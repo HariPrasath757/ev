@@ -4,9 +4,9 @@ import type { Report } from '@/types';
 
 // Hardcoded users for login as per requirements
 export const PREDEFINED_USERS = [
-  { id: 'user1', username: 'citycentercharger', password: 'city@123', stationId: 'station-1' },
-  { id: 'user2', username: 'mallcharger', password: 'mall@123', stationId: 'station-2' },
-  { id: 'user3', username: 'thundercharger', password: 'thunder@123', stationId: 'station-3' },
+  { id: 'user1', username: 'citycentercharger', password: 'city@123', stationId: 'station1' },
+  { id: 'user2', username: 'mallcharger', password: 'mall@123', stationId: 'station2' },
+  { id: 'user3', username: 'thundercharger', password: 'thunder@123', stationId: 'station3' },
 ];
 
 /**
