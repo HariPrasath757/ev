@@ -1,16 +1,14 @@
 'use client';
 
-import useStations from '@/hooks/use-stations';
+import useStation from '@/hooks/use-stations';
 import StationCard from './station-card';
 import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
-import { useEffect, useState } from 'react';
-import type { Station } from '@/types';
 
 const StationSkeleton = () => (
-  <div className="flex flex-col space-y-3">
+  <div className="flex flex-col space-y-3 max-w-md mx-auto">
     <Skeleton className="h-[200px] w-full rounded-xl" />
     <div className="space-y-2 p-2">
       <Skeleton className="h-4 w-3/4" />
@@ -25,16 +23,8 @@ type StationsGridProps = {
 };
 
 export default function StationsGrid({ userId }: StationsGridProps) {
-  const { stations, loading, error } = useStations();
   const { user } = useAuth();
-  const [station, setStation] = useState<Station | null>(null);
-
-  useEffect(() => {
-    if (user && stations.length > 0) {
-      const userStation = stations.find(s => s.id === user.stationId);
-      setStation(userStation || null);
-    }
-  }, [user, stations]);
+  const { station, loading, error } = useStation(user?.stationId || null);
 
   if (loading) {
     return <StationSkeleton />;
@@ -42,18 +32,24 @@ export default function StationsGrid({ userId }: StationsGridProps) {
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
-          Failed to load station data: {error.message}. Please check your connection or Firebase setup.
-        </AlertDescription>
-      </Alert>
+      <div className="max-w-md mx-auto">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error.message} Please check your connection or Firebase setup.
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
   if (!station) {
-    return <p>No station assigned to this user or station not found.</p>;
+    return (
+        <div className="max-w-md mx-auto text-center">
+            <p>No station assigned to this user or station not found.</p>
+        </div>
+    );
   }
 
   return (

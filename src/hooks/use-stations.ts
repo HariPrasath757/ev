@@ -5,30 +5,35 @@ import { ref, onValue, off } from 'firebase/database';
 import { db } from '@/lib/firebase/config';
 import type { Station } from '@/types';
 
-export default function useStations() {
-  const [stations, setStations] = useState<Station[]>([]);
+export default function useStation(stationId: string | null) {
+  const [station, setStation] = useState<Station | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    const stationsRef = ref(db, 'stations');
+    if (!stationId) {
+      setLoading(false);
+      setStation(null);
+      return;
+    }
+
+    setLoading(true);
+    const stationRef = ref(db, `stations/${stationId}`);
 
     const listener = onValue(
-      stationsRef,
+      stationRef,
       (snapshot) => {
         try {
           const data = snapshot.val();
           if (data) {
-            const stationsArray: Station[] = Object.keys(data).map((key) => ({
-              id: key,
-              ...data[key],
-            }));
-            setStations(stationsArray);
+            setStation({ id: stationId, ...data });
           } else {
-            setStations([]);
+            setStation(null);
+            setError(new Error(`Station with ID "${stationId}" not found.`));
           }
         } catch (e) {
           setError(e instanceof Error ? e : new Error('Failed to parse station data.'));
+          setStation(null);
         } finally {
           setLoading(false);
         }
@@ -40,9 +45,9 @@ export default function useStations() {
     );
 
     return () => {
-      off(stationsRef, 'value', listener);
+      off(stationRef, 'value', listener);
     };
-  }, []);
+  }, [stationId]);
 
-  return { stations, loading, error };
+  return { station, loading, error };
 }

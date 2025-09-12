@@ -9,13 +9,12 @@ import {
   Clock,
   DollarSign,
   Users,
-  ShieldCheck,
+  Star,
   BatteryCharging,
   User,
 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import type { Station } from '@/types';
 import ReportIssueDialog from './report-issue-dialog';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -46,6 +45,23 @@ const getStatusInfo = (station: Station) => {
     icon: <Zap className="h-4 w-4" />,
   };
 };
+
+const TrustScore = ({ score }: { score: number }) => {
+    const totalStars = 5;
+    const filledStars = Math.round(score);
+    const emptyStars = totalStars - filledStars;
+  
+    return (
+      <div className="flex items-center gap-1">
+        {[...Array(filledStars)].map((_, i) => (
+          <Star key={`filled-${i}`} className="h-5 w-5 text-yellow-400 fill-yellow-400" />
+        ))}
+        {[...Array(emptyStars)].map((_, i) => (
+          <Star key={`empty-${i}`} className="h-5 w-5 text-muted-foreground" />
+        ))}
+      </div>
+    );
+  };
 
 export default function StationCard({ station, userId }: StationCardProps) {
   const statusInfo = getStatusInfo(station);
@@ -105,33 +121,30 @@ export default function StationCard({ station, userId }: StationCardProps) {
             </div>
           </div>
           <div className="col-span-2 flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            <div className="w-full">
-                <p className="text-muted-foreground mb-1">Trust Score</p>
-                <Progress value={station.trustScore} className="h-2" />
-            </div>
+            <p className="text-muted-foreground">Trust Score</p>
+            <TrustScore score={station.trustScore} />
           </div>
         </div>
         
         {statusInfo.text === 'Occupied' && (
           <div className="mt-6">
             <h4 className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Waiting Queue</h4>
-            <div className="mt-2 space-y-2 text-sm text-muted-foreground bg-white/5 p-3 rounded-md">
+            <div className="mt-2 space-y-2 text-sm text-muted-foreground bg-card-foreground/5 p-3 rounded-md">
               {station.queue && Object.keys(station.queue).length > 0 ? (
                 <ul className="space-y-2">
                   {Object.entries(station.queue).map(([driverId, details]) => (
-                    <li key={driverId} className="flex items-start gap-3">
-                      <User className="h-4 w-4 mt-0.5 text-primary" />
+                    <li key={driverId} className="flex items-start gap-3 p-2 rounded-md bg-background/50">
+                      <User className="h-4 w-4 mt-1 text-primary" />
                       <div>
                         <p className="font-semibold text-foreground">{details.vehicle}</p>
                         <p className="text-xs text-muted-foreground">User: {details.userId}</p>
-                        <p className="text-xs text-muted-foreground">Joined: {new Date(details.joinedAt).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">Joined: {new Date(details.joinedAt).toLocaleTimeString()}</p>
                       </div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p>No queue</p>
+                <p className="p-2">No queue</p>
               )}
             </div>
           </div>
