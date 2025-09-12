@@ -33,15 +33,18 @@ export default function BillingDialog({ open, onOpenChange, station, driver, veh
   const { toast } = useToast();
 
   const billingDetails = useMemo(() => {
-    if (!driver || !station || !vehicle) return null;
+    if (!driver || !station) return null;
 
     const startTime = new Date(driver.joinedAt);
     const endTime = new Date();
     const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
 
-    // Calculate kWh delivered based on duration, capped by vehicle capacity.
+    // Calculate kWh delivered based on duration.
+    // If vehicle capacity is available, use it as a cap. Otherwise, just use the calculated value.
     const calculatedKWh = durationMinutes * AVG_CHARGING_RATE_KWH_PER_MINUTE;
-    const kWhDelivered = Math.min(calculatedKWh, vehicle.capacityKWh);
+    const kWhDelivered = vehicle?.capacityKWh 
+      ? Math.min(calculatedKWh, vehicle.capacityKWh) 
+      : calculatedKWh;
 
     const cost = kWhDelivered * station.pricePerKWh;
     const platformFee = cost * 0.05; // 5% partner fee

@@ -130,14 +130,6 @@ export default function StationCard({ station, userId }: StationCardProps) {
   }, [station.queue, vehicles]);
 
   const handleOpenBilling = (driver: DriverInQueue) => {
-    if (!vehicles[driver.vehicleId]) {
-      toast({
-        variant: 'destructive',
-        title: 'Please wait',
-        description: 'Vehicle data is still loading. Please try again in a moment.'
-      });
-      return;
-    }
     setSelectedDriver(driver);
     setIsBillingOpen(true);
   }
@@ -308,7 +300,7 @@ export default function StationCard({ station, userId }: StationCardProps) {
       <CardFooter>
         <ReportIssueDialog stationId={station.id} stationName={station.name} userId={userId} />
       </CardFooter>
-       {selectedDriver && vehicles[selectedDriver.vehicleId] && (
+       {selectedDriver && (
         <BillingDialog
           open={isBillingOpen}
           onOpenChange={setIsBillingOpen}
