@@ -6,31 +6,67 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import nodemailer from 'nodemailer';
 
-// Define a tool to "send" an email. In a real app, this would use a service like SendGrid or AWS SES.
-// For this prototype, it just logs the email content to the console.
+// Configure the email transport using environment variables.
+// In a real application, these would be set in your deployment environment.
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT || '587', 10),
+  secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+  auth: {
+    user: process.env.EMAIL_USER, // Your SMTP username
+    pass: process.env.EMAIL_PASS, // Your SMTP password or App Password
+  },
+});
+
+
 const sendEmailTool = ai.defineTool(
   {
     name: 'sendEmail',
     description: 'Sends an email to a specified address with a subject and body.',
     inputSchema: z.object({
-      to: z.string().email().describe('The recipient\'s email address.'),
+      to: z.string().email().describe("The recipient's email address."),
       subject: z.string().describe('The subject of the email.'),
       body: z.string().describe('The plain text body of the email.'),
     }),
     outputSchema: z.object({
       success: z.boolean(),
+      error: z.string().optional(),
     }),
   },
   async (input) => {
-    console.log('--- Sending Email ---');
-    console.log(`To: ${input.to}`);
-    console.log(`Subject: ${input.subject}`);
-    console.log('Body:');
-    console.log(input.body);
-    console.log('--- Email Sent (Simulated) ---');
-    // Simulate a successful email send.
-    return { success: true };
+    // Verify that the necessary environment variables are set.
+    if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      const errorMessage = 'Email service is not configured. Please set EMAIL_HOST, EMAIL_USER, and EMAIL_PASS environment variables.';
+      console.error(errorMessage);
+      // Fallback to logging the email to the console if not configured.
+      console.log('--- Email Simulation (Not Sent) ---');
+      console.log(`To: ${input.to}`);
+      console.log(`Subject: ${input.subject}`);
+      console.log('Body:');
+      console.log(input.body);
+      console.log('--- End of Simulation ---');
+      return { success: false, error: errorMessage };
+    }
+
+    try {
+      const mailOptions = {
+        from: `"EvolveNet Platform" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`, // sender address
+        to: input.to,
+        subject: input.subject,
+        text: input.body,
+        html: `<pre style="font-family: Arial, sans-serif;">${input.body}</pre>`, // For better formatting in email clients
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`Email sent successfully to ${input.to}`);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      return { success: false, error: errorMessage };
+    }
   }
 );
 
@@ -88,6 +124,9 @@ EvolveNet Platform
       body,
     });
     
+    // The flow will return success even if the email fails,
+    // as the primary action (billing) was completed.
+    // The error is logged by the tool.
     return { success: output.success };
   }
 );
