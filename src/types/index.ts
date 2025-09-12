@@ -72,5 +72,4 @@ export interface LedgerEntry {
   totalBill: number;
   startTime: string;
   endTime: string;
-  receiptSent: boolean;
 }

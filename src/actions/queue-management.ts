@@ -1,18 +1,8 @@
 'use server';
 
 import { db } from '@/lib/firebase/config';
-import type { Station, LedgerEntry, Vehicle, DriverInQueue } from '@/types';
+import type { Station, LedgerEntry, DriverInQueue } from '@/types';
 import { get, ref, set, push, remove, update } from 'firebase/database';
-import { sendReceipt } from '@/ai/flows/send-receipt-flow';
-
-async function getVehiclePriority(vehicleId: string): Promise<Vehicle['priority']> {
-  const vehicleRef = ref(db, `vehicles/${vehicleId}`);
-  const snapshot = await get(vehicleRef);
-  if (snapshot.exists()) {
-    return snapshot.val().priority || 'normal';
-  }
-  return 'normal';
-}
 
 /**
  * Adds a driver to the station's queue.
@@ -56,10 +46,14 @@ export async function addDriverToQueue(
 }
 
 /**
- * Removes a driver from the station's queue, creates a ledger entry, and sends a receipt.
- * This function no longer auto-promotes; it just frees up a port.
+ * Removes a driver from the queue, creates a ledger entry, and frees up a port.
+ * Does NOT auto-promote the next driver.
  */
-export async function removeDriverFromQueue(stationId: string, driver: DriverInQueue, ledgerDetails: Omit<LedgerEntry, 'stationId' | 'receiptSent'>) {
+export async function removeDriverFromQueue(
+  stationId: string,
+  driver: DriverInQueue,
+  ledgerDetails: Omit<LedgerEntry, 'stationId'>
+): Promise<{ success: boolean; message: string, ledgerId?: string }> {
   const stationRef = ref(db, `stations/${stationId}`);
   const stationSnapshot = await get(stationRef);
 
@@ -73,37 +67,16 @@ export async function removeDriverFromQueue(stationId: string, driver: DriverInQ
   const ledgerEntry: Omit<LedgerEntry, 'id'> = {
     ...ledgerDetails,
     stationId,
-    receiptSent: false, // Will be updated after email is sent
   };
   
   const ledgerRef = push(ref(db, 'ledger'));
   await set(ledgerRef, ledgerEntry);
   const ledgerId = ledgerRef.key!;
 
-  // 2. Send Receipt Email via Genkit Flow
-  try {
-    const driverSnapshot = await get(ref(db, `drivers/${driver.userId}`));
-    if (driverSnapshot.exists()) {
-      const driverData = driverSnapshot.val();
-      await sendReceipt({
-        stationName: station.name,
-        driverName: driverData.name,
-        driverEmail: driverData.email,
-        vehicleName: driver.vehicleName,
-        ...ledgerDetails,
-      });
-      // Mark receipt as sent
-      await update(ref(db, `ledger/${ledgerId}`), { receiptSent: true });
-    }
-  } catch (error) {
-    console.error("Failed to send receipt, but continuing process.", error);
-    // You might want to add more robust error handling here, like a retry mechanism.
-  }
-
-  // 3. Remove the driver from queue
+  // 2. Remove the driver from queue
   await remove(ref(db, `stations/${stationId}/queue/${driver.driverId}`));
 
-  // 4. Free up port if the driver was charging
+  // 3. Free up port if the driver was charging
   if (driver.chargingStatus === 'charging') {
     const newAvailablePorts = Math.min(station.totalPorts, (station.availablePorts || 0) + 1);
     const updates: Partial<Pick<Station, 'availablePorts' | 'status'>> = {
@@ -115,8 +88,9 @@ export async function removeDriverFromQueue(stationId: string, driver: DriverInQ
      await update(stationRef, updates);
   }
 
-  return { success: true, message: 'Driver session completed and billed.' };
+  return { success: true, message: 'Driver session completed and billed.', ledgerId };
 }
+
 
 /**
  * Manually promotes a waiting driver to charging status.
