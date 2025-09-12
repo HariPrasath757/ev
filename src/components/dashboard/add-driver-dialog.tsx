@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Loader2, PlusCircle } from 'lucide-react';
+import { ref, get } from 'firebase/database';
+import { db } from '@/lib/firebase/config';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -25,12 +27,14 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { addDriverToQueue } from '@/actions/queue-management';
+import type { Vehicle } from '@/types';
 
 const formSchema = z.object({
   userId: z.string().min(1, 'User ID is required.'),
-  vehicle: z.string().min(2, 'Vehicle description is required.'),
+  vehicleId: z.string().min(1, 'Please select a vehicle.'),
 });
 
 type AddDriverDialogProps = {
@@ -40,19 +44,47 @@ type AddDriverDialogProps = {
 export default function AddDriverDialog({ stationId }: AddDriverDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const { toast } = useToast();
   
+  useEffect(() => {
+    async function fetchVehicles() {
+      const vehiclesRef = ref(db, 'vehicles');
+      const snapshot = await get(vehiclesRef);
+      if (snapshot.exists()) {
+        const vehiclesData = snapshot.val();
+        const vehicleList = Object.keys(vehiclesData).map(key => ({
+          id: key,
+          ...vehiclesData[key]
+        }));
+        setVehicles(vehicleList);
+      }
+    }
+    fetchVehicles();
+  }, []);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       userId: '',
-      vehicle: '',
+      vehicleId: '',
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    const result = await addDriverToQueue(stationId, values);
+    const selectedVehicle = vehicles.find(v => v.id === values.vehicleId);
+    if (!selectedVehicle) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Selected vehicle not found.'});
+      setIsSubmitting(false);
+      return;
+    }
+
+    const result = await addDriverToQueue(stationId, {
+      userId: values.userId,
+      vehicleId: selectedVehicle.id,
+      vehicleName: selectedVehicle.name
+    });
     setIsSubmitting(false);
 
     if (result.success) {
@@ -83,8 +115,7 @@ export default function AddDriverDialog({ stationId }: AddDriverDialogProps) {
         <DialogHeader>
           <DialogTitle>Add a Driver to the Queue</DialogTitle>
           <DialogDescription>
-            Enter the driver's details. They will be added to the queue.
-            If a port is available, they will start charging immediately.
+            Enter the driver's details and select their vehicle.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -104,13 +135,24 @@ export default function AddDriverDialog({ stationId }: AddDriverDialogProps) {
             />
             <FormField
               control={form.control}
-              name="vehicle"
+              name="vehicleId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vehicle (Make/Model)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Tesla Model 3" {...field} />
-                  </FormControl>
+                  <FormLabel>Vehicle</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a vehicle" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {vehicles.map((vehicle) => (
+                        <SelectItem key={vehicle.id} value={vehicle.id}>
+                          {vehicle.name} {vehicle.priority === 'emergency' && '(Emergency)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

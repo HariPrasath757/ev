@@ -1,15 +1,24 @@
 'use server';
 
 import { db } from '@/lib/firebase/config';
-import type { Station, QueueEntry } from '@/types';
+import type { Station, QueueEntry, LedgerEntry, Vehicle } from '@/types';
 import { get, ref, set, push, remove, update } from 'firebase/database';
+
+async function getVehiclePriority(vehicleId: string): Promise<Vehicle['priority']> {
+  const vehicleRef = ref(db, `vehicles/${vehicleId}`);
+  const snapshot = await get(vehicleRef);
+  if (snapshot.exists()) {
+    return snapshot.val().priority || 'normal';
+  }
+  return 'normal';
+}
 
 /**
  * Adds a driver to the station's queue.
  */
 export async function addDriverToQueue(
   stationId: string,
-  vehicleInfo: { userId: string; vehicle: string }
+  vehicleInfo: { userId: string; vehicleId: string; vehicleName: string }
 ) {
   const stationRef = ref(db, `stations/${stationId}`);
   const snapshot = await get(stationRef);
@@ -45,9 +54,8 @@ export async function addDriverToQueue(
   return { success: true, message: 'Driver added successfully.' };
 }
 
-
 /**
- * Removes a driver from the station's queue and promotes the next waiting driver if applicable.
+ * Removes a driver from the station's queue, creates a ledger entry, and promotes the next waiting driver if applicable.
  */
 export async function removeDriverFromQueue(stationId: string, driverId: string) {
   const stationRef = ref(db, `stations/${stationId}`);
@@ -65,19 +73,53 @@ export async function removeDriverFromQueue(stationId: string, driverId: string)
     return { success: false, message: 'Driver not found in queue.' };
   }
 
-  // Remove the driver
+  // Create Ledger Entry
+  const unitsConsumed = Math.round(Math.random() * 50) + 5; // Placeholder
+  const cost = unitsConsumed * station.pricePerKWh;
+  const platformFee = 5;
+  const totalBill = cost + platformFee;
+  
+  const ledgerEntry: Omit<LedgerEntry, 'id'> = {
+    stationId,
+    userId: driverToRemove.userId,
+    vehicleId: driverToRemove.vehicleId,
+    vehicleName: driverToRemove.vehicleName,
+    unitsConsumed,
+    cost,
+    platformFee,
+    totalBill,
+    startTime: driverToRemove.joinedAt,
+    endTime: new Date().toISOString(),
+    receiptSent: false,
+  };
+  
+  const ledgerRef = push(ref(db, 'ledger'));
+  await set(ledgerRef, ledgerEntry);
+
+  // Remove the driver from queue
   await remove(ref(db, `stations/${stationId}/queue/${driverId}`));
 
   // If the removed driver was charging, we might need to promote someone.
   if (driverToRemove.chargingStatus === 'charging') {
-      const waitingDrivers = Object.entries(queue)
-        .filter(([id, details]) => id !== driverId && details.chargingStatus === 'waiting')
-        .sort(([, a], [, b]) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+      const remainingQueue = (await get(ref(db, `stations/${stationId}/queue`))).val() || {};
+      const waitingDrivers = [];
+      for (const id in remainingQueue) {
+        if (remainingQueue[id].chargingStatus === 'waiting') {
+          const priority = await getVehiclePriority(remainingQueue[id].vehicleId);
+          waitingDrivers.push({ id, ...remainingQueue[id], priority });
+        }
+      }
+
+      waitingDrivers.sort((a, b) => {
+        if (a.priority === 'emergency' && b.priority !== 'emergency') return -1;
+        if (a.priority !== 'emergency' && b.priority === 'emergency') return 1;
+        return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
+      });
 
       if (waitingDrivers.length > 0) {
-        const [nextDriverId] = waitingDrivers[0];
-        // Promote the next driver to charging, availablePorts count remains the same as one left and one started.
-        await update(ref(db, `stations/${stationId}/queue/${nextDriverId}`), {
+        const [nextDriver] = waitingDrivers;
+        // Promote the next driver to charging. Port count remains same.
+        await update(ref(db, `stations/${stationId}/queue/${nextDriver.id}`), {
           chargingStatus: 'charging',
         });
       } else {
@@ -93,8 +135,7 @@ export async function removeDriverFromQueue(stationId: string, driverId: string)
       }
   }
 
-
-  return { success: true, message: 'Driver removed and queue updated.' };
+  return { success: true, message: 'Driver session completed and billed.' };
 }
 
 /**

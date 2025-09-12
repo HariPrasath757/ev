@@ -4,14 +4,35 @@ export interface User {
   stationId: string;
 }
 
+export interface Vehicle {
+  id: string;
+  name: string;
+  capacityKWh: number;
+  type: 'sedan' | 'suv' | 'truck';
+  priority: 'normal' | 'emergency';
+}
+
+export interface DriverInfo {
+  id: string;
+  name: string;
+  email: string;
+  vehicleId: string;
+  vehicleName: string;
+}
+
 export interface QueueEntry {
-  joinedAt: string;
   userId: string;
-  vehicle: string;
+  vehicleId: string;
+  vehicleName: string;
+  joinedAt: string;
   chargingStatus: 'charging' | 'waiting';
 }
 
-export type Driver = QueueEntry & { driverId: string };
+export type DriverInQueue = QueueEntry & {
+  driverId: string; // The key in the queue object
+  priority: Vehicle['priority'];
+};
+
 
 export interface Station {
   id: string;
@@ -37,4 +58,18 @@ export interface Report {
   userId:string;
   status: 'open' | 'in-progress' | 'resolved';
   severity: 'low' | 'medium' | 'high';
+}
+
+export interface LedgerEntry {
+  stationId: string;
+  userId: string;
+  vehicleId: string;
+  vehicleName: string;
+  unitsConsumed: number;
+  cost: number;
+  platformFee: number;
+  totalBill: number;
+  startTime: string;
+  endTime: string;
+  receiptSent: boolean;
 }

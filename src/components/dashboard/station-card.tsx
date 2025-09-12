@@ -14,16 +14,20 @@ import {
   User,
   X,
   ArrowUpCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { Station, Driver } from '@/types';
+import type { Station, DriverInQueue, Vehicle } from '@/types';
 import ReportIssueDialog from './report-issue-dialog';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { removeDriverFromQueue, promoteDriverToCharging } from '@/actions/queue-management';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '../ui/button';
 import AddDriverDialog from './add-driver-dialog';
+import { useState, useEffect } from 'react';
+import { ref, get } from 'firebase/database';
+import { db } from '@/lib/firebase/config';
 
 type StationCardProps = {
   station: Station;
@@ -87,6 +91,31 @@ export default function StationCard({ station, userId }: StationCardProps) {
   const statusInfo = getStatusInfo(station);
   const placeholderImage = PlaceHolderImages.find(img => img.id === station.id) || PlaceHolderImages[0];
   const { toast } = useToast();
+  const [drivers, setDrivers] = useState<DriverInQueue[]>([]);
+
+  useEffect(() => {
+    const processQueue = async () => {
+      if (!station.queue) {
+        setDrivers([]);
+        return;
+      }
+      
+      const vehiclesSnapshot = await get(ref(db, 'vehicles'));
+      const vehicles = vehiclesSnapshot.val() || {};
+
+      const processedDrivers: DriverInQueue[] = Object.entries(station.queue).map(([driverId, details]) => {
+        const vehicle: Vehicle | undefined = vehicles[details.vehicleId];
+        return {
+          driverId,
+          ...details,
+          priority: vehicle?.priority || 'normal',
+        }
+      });
+      
+      setDrivers(processedDrivers);
+    }
+    processQueue();
+  }, [station.queue]);
 
   const handleRemoveDriver = async (driverId: string) => {
     const result = await removeDriverFromQueue(station.id, driverId);
@@ -106,16 +135,15 @@ export default function StationCard({ station, userId }: StationCardProps) {
     }
   }
 
-  const getDriversByStatus = (status: 'charging' | 'waiting'): Driver[] => {
-    if (!station.queue) return [];
-    return Object.entries(station.queue)
-      .map(([driverId, details]) => ({ driverId, ...details }))
-      .filter(driver => driver.chargingStatus === status)
-      .sort((a,b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
-  };
-  
-  const chargingDrivers = getDriversByStatus('charging');
-  const waitingDrivers = getDriversByStatus('waiting');
+  const chargingDrivers = drivers.filter(d => d.chargingStatus === 'charging')
+    .sort((a,b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+
+  const waitingDrivers = drivers.filter(d => d.chargingStatus === 'waiting')
+    .sort((a, b) => {
+      if (a.priority === 'emergency' && b.priority !== 'emergency') return -1;
+      if (a.priority !== 'emergency' && b.priority === 'emergency') return 1;
+      return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
+    });
 
   return (
     <Card className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/20">
@@ -191,7 +219,7 @@ export default function StationCard({ station, userId }: StationCardProps) {
                       <div className="flex items-start gap-3">
                         <User className="h-4 w-4 mt-1 text-primary" />
                         <div>
-                          <p className="font-semibold text-foreground">{driver.vehicle}</p>
+                          <p className="font-semibold text-foreground">{driver.vehicleName}</p>
                           <p className="text-xs text-muted-foreground">User: {driver.userId}</p>
                           <p className="text-xs text-muted-foreground">Joined: {new Date(driver.joinedAt).toLocaleTimeString()}</p>
                         </div>
@@ -214,9 +242,12 @@ export default function StationCard({ station, userId }: StationCardProps) {
                   {waitingDrivers.map((driver) => (
                     <li key={driver.driverId} className="flex items-center justify-between gap-3 p-2 rounded-md bg-background/50">
                       <div className="flex items-start gap-3">
-                        <User className="h-4 w-4 mt-1 text-primary" />
+                        {driver.priority === 'emergency' ? 
+                          <ShieldAlert className="h-4 w-4 mt-1 text-yellow-400" /> : 
+                          <User className="h-4 w-4 mt-1 text-primary" />
+                        }
                         <div>
-                          <p className="font-semibold text-foreground">{driver.vehicle}</p>
+                          <p className="font-semibold text-foreground">{driver.vehicleName}</p>
                           <p className="text-xs text-muted-foreground">User: {driver.userId}</p>
                           <p className="text-xs text-muted-foreground">Joined: {new Date(driver.joinedAt).toLocaleTimeString()}</p>
                         </div>
@@ -240,7 +271,7 @@ export default function StationCard({ station, userId }: StationCardProps) {
               )}
             </div>
             
-            {chargingDrivers.length === 0 && waitingDrivers.length === 0 && (
+            {drivers.length === 0 && (
                 <p className="p-2 text-center">The driver queue is empty.</p>
             )}
           </div>
