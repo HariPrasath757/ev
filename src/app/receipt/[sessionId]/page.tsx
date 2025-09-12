@@ -117,14 +117,15 @@ export default function ReceiptPage() {
             </div>
             
             <div className="p-4 rounded-lg bg-muted/50 space-y-2">
-                <ReceiptDetail label="Units Consumed" value={`${receipt.unitsConsumed.toFixed(2)} kWh`} />
-                <ReceiptDetail label="Cost" value={`₹${receipt.cost.toFixed(2)}`} />
-                <ReceiptDetail label="Platform Fee" value={`₹${receipt.platformFee.toFixed(2)}`} />
+                <ReceiptDetail label="Energy Delivered" value={`${receipt.kWhDelivered.toFixed(2)} kWh`} />
+                <ReceiptDetail label="Price" value={`₹${receipt.pricePerKWh.toFixed(2)} / kWh`} />
+                <ReceiptDetail label="Base Cost" value={`₹${receipt.cost.toFixed(2)}`} />
+                <ReceiptDetail label="Partner Fee" value={`₹${receipt.platformFee.toFixed(2)}`} />
             </div>
 
             <div className="flex justify-between items-center bg-primary/10 text-primary font-bold p-4 rounded-lg text-lg">
               <span>Total Bill</span>
-              <span>₹{receipt.totalBill.toFixed(2)}</span>
+              <span>₹{receipt.totalAmount.toFixed(2)}</span>
             </div>
              <p className="text-center text-xs text-muted-foreground pt-4">
                 Thank you for choosing EvolveNet! A copy of this receipt is saved to your account.

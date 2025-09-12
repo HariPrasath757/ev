@@ -8,7 +8,7 @@ import { AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 
 const StationSkeleton = () => (
-  <div className="flex flex-col space-y-3 max-w-md mx-auto">
+  <div className="flex flex-col space-y-3">
     <Skeleton className="h-[200px] w-full rounded-xl" />
     <div className="space-y-2 p-2">
       <Skeleton className="h-4 w-3/4" />
@@ -32,7 +32,7 @@ export default function StationsGrid({ userId }: StationsGridProps) {
 
   if (error) {
     return (
-      <div className="max-w-md mx-auto">
+      <div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
@@ -46,14 +46,14 @@ export default function StationsGrid({ userId }: StationsGridProps) {
 
   if (!station) {
     return (
-        <div className="max-w-md mx-auto text-center">
+        <div className="text-center">
             <p>No station assigned to this user or station not found.</p>
         </div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto">
+    <div>
         <StationCard key={station.id} station={station} userId={userId} />
     </div>
   );

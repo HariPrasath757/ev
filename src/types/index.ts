@@ -66,10 +66,12 @@ export interface LedgerEntry {
   userId: string;
   vehicleId: string;
   vehicleName: string;
-  unitsConsumed: number;
-  cost: number;
-  platformFee: number;
-  totalBill: number;
   startTime: string;
   endTime: string;
+  kWhDelivered: number;
+  pricePerKWh: number;
+  cost: number;
+  platformFee: number;
+  totalAmount: number;
+  receiptSent: boolean;
 }

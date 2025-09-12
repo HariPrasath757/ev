@@ -28,6 +28,7 @@ import BillingDialog from './billing-dialog';
 import { useState, useEffect } from 'react';
 import { ref, get } from 'firebase/database';
 import { db } from '@/lib/firebase/config';
+import { cn } from '@/lib/utils';
 
 type StationCardProps = {
   station: Station;
@@ -190,7 +191,7 @@ export default function StationCard({ station, userId }: StationCardProps) {
             <DollarSign className="h-5 w-5 text-primary" />
             <div>
                 <p className="text-muted-foreground">Price</p>
-                <p className="font-semibold">${station.pricePerKWh.toFixed(2)} / kWh</p>
+                <p className="font-semibold">₹{station.pricePerKWh.toFixed(2)} / kWh</p>
             </div>
           </div>
            <div className="flex items-center gap-2">
@@ -217,7 +218,13 @@ export default function StationCard({ station, userId }: StationCardProps) {
               {chargingDrivers.length > 0 ? (
                 <ul className="space-y-2">
                   {chargingDrivers.map((driver) => (
-                    <li key={driver.driverId} className="flex items-center justify-between gap-3 p-2 rounded-md bg-background/50">
+                    <li 
+                      key={driver.driverId} 
+                      className={cn(
+                        "flex items-center justify-between gap-3 p-2 rounded-md bg-background/50",
+                        "border-l-4 border-green-500"
+                      )}
+                    >
                       <div className="flex items-start gap-3">
                         <User className="h-4 w-4 mt-1 text-primary" />
                         <div>
@@ -242,7 +249,13 @@ export default function StationCard({ station, userId }: StationCardProps) {
                {waitingDrivers.length > 0 ? (
                 <ul className="space-y-2">
                   {waitingDrivers.map((driver) => (
-                    <li key={driver.driverId} className="flex items-center justify-between gap-3 p-2 rounded-md bg-background/50">
+                    <li 
+                      key={driver.driverId}
+                      className={cn(
+                        "flex items-center justify-between gap-3 p-2 rounded-md bg-background/50",
+                        "border-l-4 border-yellow-500"
+                      )}
+                    >
                       <div className="flex items-start gap-3">
                         {driver.priority === 'emergency' ? 
                           <ShieldAlert className="h-4 w-4 mt-1 text-yellow-400" /> : 

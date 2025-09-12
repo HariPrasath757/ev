@@ -32,17 +32,18 @@ export default function BillingDialog({ open, onOpenChange, station, driver, veh
   const billingDetails = useMemo(() => {
     if (!driver || !station || !vehicle) return null;
 
-    const unitsConsumed = Math.round(Math.random() * (vehicle.capacityKWh * 0.8)) + 5; // Placeholder logic
-    const cost = unitsConsumed * station.pricePerKWh;
+    const kWhDelivered = Math.round(Math.random() * (vehicle.capacityKWh * 0.8)) + 5; // Placeholder logic
+    const cost = kWhDelivered * station.pricePerKWh;
     const platformFee = cost * 0.05; // 5% partner fee
-    const totalBill = cost + platformFee;
+    const totalAmount = cost + platformFee;
     const endTime = new Date().toISOString();
 
     return {
-      unitsConsumed,
+      kWhDelivered,
+      pricePerKWh: station.pricePerKWh,
       cost,
       platformFee,
-      totalBill,
+      totalAmount,
       startTime: driver.joinedAt,
       endTime,
     };
@@ -70,10 +71,12 @@ export default function BillingDialog({ open, onOpenChange, station, driver, veh
         vehicleName: driver.vehicleName,
         startTime: billingDetails.startTime,
         endTime: billingDetails.endTime,
-        unitsConsumed: billingDetails.unitsConsumed,
+        kWhDelivered: billingDetails.kWhDelivered,
+        pricePerKWh: billingDetails.pricePerKWh,
         cost: billingDetails.cost,
         platformFee: billingDetails.platformFee,
-        totalBill: billingDetails.totalBill,
+        totalAmount: billingDetails.totalAmount,
+        receiptSent: true,
     };
 
     const result = await removeDriverFromQueue(station.id, driver, ledgerDetails);
@@ -147,10 +150,10 @@ export default function BillingDialog({ open, onOpenChange, station, driver, veh
                 <div className="border-t my-2" />
                 <div className="flex justify-between">
                     <span className="text-muted-foreground">Units Consumed:</span>
-                    <span className="font-semibold">{billingDetails.unitsConsumed.toFixed(2)} kWh</span>
+                    <span className="font-semibold">{billingDetails.kWhDelivered.toFixed(2)} kWh</span>
                 </div>
                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Cost:</span>
+                    <span className="text-muted-foreground">Cost (at ₹{billingDetails.pricePerKWh.toFixed(2)}/kWh):</span>
                     <span className="font-semibold">₹{billingDetails.cost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -160,7 +163,7 @@ export default function BillingDialog({ open, onOpenChange, station, driver, veh
                  <div className="border-t my-2" />
                 <div className="flex justify-between text-base font-bold text-primary">
                     <span>Total Bill:</span>
-                    <span>₹{billingDetails.totalBill.toFixed(2)}</span>
+                    <span>₹{billingDetails.totalAmount.toFixed(2)}</span>
                 </div>
             </div>
             <DialogFooter>
