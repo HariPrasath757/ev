@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   username: string;
+  stationId: string;
 }
 
 export interface QueueEntry {

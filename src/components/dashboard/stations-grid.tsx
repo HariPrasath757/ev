@@ -5,6 +5,9 @@ import StationCard from './station-card';
 import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
+import { useEffect, useState } from 'react';
+import type { Station } from '@/types';
 
 const StationSkeleton = () => (
   <div className="flex flex-col space-y-3">
@@ -23,15 +26,18 @@ type StationsGridProps = {
 
 export default function StationsGrid({ userId }: StationsGridProps) {
   const { stations, loading, error } = useStations();
+  const { user } = useAuth();
+  const [station, setStation] = useState<Station | null>(null);
+
+  useEffect(() => {
+    if (user && stations.length > 0) {
+      const userStation = stations.find(s => s.id === user.stationId);
+      setStation(userStation || null);
+    }
+  }, [user, stations]);
 
   if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(3)].map((_, i) => (
-          <StationSkeleton key={i} />
-        ))}
-      </div>
-    );
+    return <StationSkeleton />;
   }
 
   if (error) {
@@ -46,15 +52,13 @@ export default function StationsGrid({ userId }: StationsGridProps) {
     );
   }
 
-  if (!stations.length) {
-    return <p>No stations found.</p>;
+  if (!station) {
+    return <p>No station assigned to this user or station not found.</p>;
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-      {stations.map((station) => (
+    <div className="max-w-md mx-auto">
         <StationCard key={station.id} station={station} userId={userId} />
-      ))}
     </div>
   );
 }

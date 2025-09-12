@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     if (validUser) {
-      const userToStore: User = { id: validUser.id, username: validUser.username };
+      const userToStore: User = { id: validUser.id, username: validUser.username, stationId: validUser.stationId };
       setUser(userToStore);
       sessionStorage.setItem('evolvenet-user', JSON.stringify(userToStore));
       return true;
