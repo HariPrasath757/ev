@@ -13,7 +13,6 @@ import {
   BatteryCharging,
   User,
   X,
-  PlusCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -70,7 +69,7 @@ const TrustScore = ({ score }: { score: number }) => {
             style={{ width: `${starPercentage}%` }}
           >
             {[...Array(totalStars)].map((_, i) => (
-              <Star key={`filled-${i}`} className="h-5 w-5 flex-shrink-0 text-yellow-400 fill-yellow-400" />
+              <Star key={`filled-${i}`} className="h-5 w-5 flex-shrink-0 text-yellow-400 fill-current" />
             ))}
           </div>
         </div>
@@ -164,7 +163,7 @@ export default function StationCard({ station, userId }: StationCardProps) {
           </div>
           <div className="mt-2 space-y-4 text-sm text-muted-foreground bg-card-foreground/5 p-3 rounded-md">
             <div>
-              <h5 className="font-semibold text-foreground mb-2">Charging</h5>
+              <h5 className="font-semibold text-foreground mb-2">Currently Charging</h5>
               {chargingDrivers.length > 0 ? (
                 <ul className="space-y-2">
                   {chargingDrivers.map(([driverId, details]) => (
@@ -189,7 +188,7 @@ export default function StationCard({ station, userId }: StationCardProps) {
             </div>
 
             <div>
-              <h5 className="font-semibold text-foreground mt-4 mb-2">Waiting</h5>
+              <h5 className="font-semibold text-foreground mt-4 mb-2">Waiting in Queue</h5>
                {waitingDrivers.length > 0 ? (
                 <ul className="space-y-2">
                   {waitingDrivers.map(([driverId, details]) => (
@@ -202,19 +201,17 @@ export default function StationCard({ station, userId }: StationCardProps) {
                           <p className="text-xs text-muted-foreground">Joined: {new Date(details.joinedAt).toLocaleTimeString()}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveDriver(driverId)}>
-                        <X className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {/* No remove button for waiting drivers */}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="p-2 text-xs">No drivers in the waiting queue.</p>
+                <p className="p-2 text-xs">The waiting queue is empty.</p>
               )}
             </div>
             
             {chargingDrivers.length === 0 && waitingDrivers.length === 0 && (
-                <p className="p-2 text-center">No queue</p>
+                <p className="p-2 text-center">The driver queue is empty.</p>
             )}
           </div>
         </div>

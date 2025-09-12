@@ -35,10 +35,9 @@ const formSchema = z.object({
 
 type AddDriverDialogProps = {
   stationId: string;
-  availablePorts: number;
 };
 
-export default function AddDriverDialog({ stationId, availablePorts }: AddDriverDialogProps) {
+export default function AddDriverDialog({ stationId }: AddDriverDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -75,16 +74,17 @@ export default function AddDriverDialog({ stationId, availablePorts }: AddDriver
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={availablePorts <= 0}>
+        <Button variant="outline" size="sm">
           <PlusCircle className="mr-2 h-4 w-4" />
           Add Driver
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add a Driver to a Port</DialogTitle>
+          <DialogTitle>Add a Driver to the Queue</DialogTitle>
           <DialogDescription>
-            Enter the driver's details. They will be assigned to a charging port.
+            Enter the driver's details. They will be added to the queue.
+            If a port is available, they will start charging immediately.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -122,7 +122,7 @@ export default function AddDriverDialog({ stationId, availablePorts }: AddDriver
                 className="w-full sm:w-auto"
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Add to Port
+                Add to Queue
               </Button>
             </DialogFooter>
           </form>
