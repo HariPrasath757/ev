@@ -99,30 +99,35 @@ export default function StationCard({ station, userId }: StationCardProps) {
   const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<DriverInQueue | null>(null);
 
+  // Fetch all vehicles once on component mount
   useEffect(() => {
-    const processQueue = async () => {
+    const fetchVehicles = async () => {
       const vehiclesSnapshot = await get(ref(db, 'vehicles'));
       const vehiclesData = vehiclesSnapshot.val() || {};
       setVehicles(vehiclesData);
+    };
+    fetchVehicles();
+  }, []);
 
-      if (!station.queue) {
-        setDrivers([]);
-        return;
-      }
-
-      const processedDrivers: DriverInQueue[] = Object.entries(station.queue).map(([driverId, details]) => {
-        const vehicle: Vehicle | undefined = vehiclesData[details.vehicleId];
-        return {
-          driverId,
-          ...details,
-          priority: vehicle?.priority || 'normal',
-        }
-      });
-      
-      setDrivers(processedDrivers);
+  // Process the queue whenever it changes
+  useEffect(() => {
+    if (!station.queue || Object.keys(vehicles).length === 0) {
+      setDrivers([]);
+      return;
     }
-    processQueue();
-  }, [station.queue]);
+
+    const processedDrivers: DriverInQueue[] = Object.entries(station.queue).map(([driverId, details]) => {
+      const vehicle: Vehicle | undefined = vehicles[details.vehicleId];
+      return {
+        driverId,
+        ...details,
+        priority: vehicle?.priority || 'normal',
+      }
+    });
+      
+    setDrivers(processedDrivers);
+
+  }, [station.queue, vehicles]);
 
   const handleOpenBilling = (driver: DriverInQueue) => {
     if (!vehicles[driver.vehicleId]) {
