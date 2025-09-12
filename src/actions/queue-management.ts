@@ -59,36 +59,78 @@ export async function removeDriverFromQueue(stationId: string, driverId: string)
 
   const station: Station = { id: stationId, ...stationSnapshot.val() };
   const queue = station.queue || {};
-  
-  if (!queue[driverId]) {
+  const driverToRemove = queue[driverId];
+
+  if (!driverToRemove) {
     return { success: false, message: 'Driver not found in queue.' };
   }
 
   // Remove the driver
   await remove(ref(db, `stations/${stationId}/queue/${driverId}`));
 
-  // Find the next driver to promote from the waiting list
-  const waitingDrivers = Object.entries(queue)
-    .filter(([id, details]) => id !== driverId && details.chargingStatus === 'waiting')
-    .sort(([, a], [, b]) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+  // If the removed driver was charging, we might need to promote someone.
+  if (driverToRemove.chargingStatus === 'charging') {
+      const waitingDrivers = Object.entries(queue)
+        .filter(([id, details]) => id !== driverId && details.chargingStatus === 'waiting')
+        .sort(([, a], [, b]) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
 
-  if (waitingDrivers.length > 0) {
-    const [nextDriverId] = waitingDrivers[0];
-    // Promote the next driver to charging, availablePorts count remains the same.
-    await update(ref(db, `stations/${stationId}/queue/${nextDriverId}`), {
-      chargingStatus: 'charging',
-    });
-  } else {
-    // No one is waiting, so a port becomes available.
-    const newAvailablePorts = Math.min(station.totalPorts, station.availablePorts + 1);
-    const updates: Partial<Pick<Station, 'availablePorts' | 'status'>> = {
-      availablePorts: newAvailablePorts,
-    };
-    if (newAvailablePorts > 0 && station.status !== 'offline') {
-      updates.status = 'available';
-    }
-    await update(stationRef, updates);
+      if (waitingDrivers.length > 0) {
+        const [nextDriverId] = waitingDrivers[0];
+        // Promote the next driver to charging, availablePorts count remains the same as one left and one started.
+        await update(ref(db, `stations/${stationId}/queue/${nextDriverId}`), {
+          chargingStatus: 'charging',
+        });
+      } else {
+        // No one is waiting, so a port becomes available.
+        const newAvailablePorts = Math.min(station.totalPorts, (station.availablePorts || 0) + 1);
+        const updates: Partial<Pick<Station, 'availablePorts' | 'status'>> = {
+          availablePorts: newAvailablePorts,
+        };
+        if (newAvailablePorts > 0 && station.status !== 'offline') {
+          updates.status = 'available';
+        }
+        await update(stationRef, updates);
+      }
   }
 
+
   return { success: true, message: 'Driver removed and queue updated.' };
+}
+
+/**
+ * Manually promotes a waiting driver to charging status.
+ */
+export async function promoteDriverToCharging(stationId: string, driverId: string) {
+  const stationRef = ref(db, `stations/${stationId}`);
+  const stationSnapshot = await get(stationRef);
+
+  if (!stationSnapshot.exists()) {
+    return { success: false, message: 'Station not found.' };
+  }
+
+  const station: Station = { id: stationId, ...stationSnapshot.val() };
+
+  if ((station.availablePorts || 0) <= 0) {
+    return { success: false, message: 'No available ports to start charging.' };
+  }
+
+  const driverRef = ref(db, `stations/${stationId}/queue/${driverId}`);
+  const driverSnapshot = await get(driverRef);
+
+  if (!driverSnapshot.exists() || driverSnapshot.val().chargingStatus !== 'waiting') {
+    return { success: false, message: 'Driver is not waiting or does not exist.' };
+  }
+  
+  // Promote driver
+  await update(driverRef, { chargingStatus: 'charging' });
+
+  // Update station ports and status
+  const newAvailablePorts = station.availablePorts - 1;
+  const updates: Partial<Pick<Station, 'availablePorts' | 'status'>> = {
+    availablePorts: newAvailablePorts,
+    status: newAvailablePorts > 0 ? 'available' : 'occupied',
+  };
+  await update(stationRef, updates);
+
+  return { success: true, message: 'Driver promoted to charging.' };
 }

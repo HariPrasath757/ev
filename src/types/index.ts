@@ -11,6 +11,8 @@ export interface QueueEntry {
   chargingStatus: 'charging' | 'waiting';
 }
 
+export type Driver = QueueEntry & { driverId: string };
+
 export interface Station {
   id: string;
   name: string;

@@ -13,13 +13,14 @@ import {
   BatteryCharging,
   User,
   X,
+  ArrowUpCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { Station } from '@/types';
+import type { Station, Driver } from '@/types';
 import ReportIssueDialog from './report-issue-dialog';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { removeDriverFromQueue } from '@/actions/queue-management';
+import { removeDriverFromQueue, promoteDriverToCharging } from '@/actions/queue-management';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '../ui/button';
 import AddDriverDialog from './add-driver-dialog';
@@ -53,26 +54,29 @@ const getStatusInfo = (station: Station) => {
 
 const TrustScore = ({ score }: { score: number }) => {
   const totalStars = 5;
-  const starPercentage = (score / totalStars) * 100;
-  
+  const fullStars = Math.floor(score);
+  const partialStarPercentage = (score - fullStars) * 100;
+
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center">
-        <div className="relative">
-          <div className="flex text-muted-foreground">
-            {[...Array(totalStars)].map((_, i) => (
-              <Star key={`empty-${i}`} className="h-5 w-5" />
-            ))}
+        {[...Array(fullStars)].map((_, i) => (
+          <Star key={`full-${i}`} className="h-5 w-5 text-yellow-400 fill-current" />
+        ))}
+        {fullStars < 5 && (
+          <div className="relative">
+            <Star className="h-5 w-5 text-muted-foreground" />
+            <div
+              className="absolute top-0 left-0 h-full overflow-hidden"
+              style={{ width: `${partialStarPercentage}%` }}
+            >
+              <Star className="h-5 w-5 text-yellow-400 fill-current" />
+            </div>
           </div>
-          <div
-            className="absolute top-0 left-0 h-full overflow-hidden flex"
-            style={{ width: `${starPercentage}%` }}
-          >
-            {[...Array(totalStars)].map((_, i) => (
-              <Star key={`filled-${i}`} className="h-5 w-5 flex-shrink-0 text-yellow-400 fill-current" />
-            ))}
-          </div>
-        </div>
+        )}
+        {[...Array(Math.max(0, 4 - fullStars))].map((_, i) => (
+            <Star key={`empty-${i}`} className="h-5 w-5 text-muted-foreground" />
+        ))}
       </div>
       <span className="font-semibold text-foreground">{score.toFixed(1)}/5</span>
     </div>
@@ -93,9 +97,25 @@ export default function StationCard({ station, userId }: StationCardProps) {
     }
   };
 
-  const chargingDrivers = station.queue ? Object.entries(station.queue).filter(([, d]) => d.chargingStatus === 'charging') : [];
-  const waitingDrivers = station.queue ? Object.entries(station.queue).filter(([, d]) => d.chargingStatus === 'waiting') : [];
+  const handlePromoteDriver = async (driverId: string) => {
+    const result = await promoteDriverToCharging(station.id, driverId);
+     if (result.success) {
+      toast({ title: 'Success', description: result.message });
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.message });
+    }
+  }
 
+  const getDriversByStatus = (status: 'charging' | 'waiting'): Driver[] => {
+    if (!station.queue) return [];
+    return Object.entries(station.queue)
+      .map(([driverId, details]) => ({ driverId, ...details }))
+      .filter(driver => driver.chargingStatus === status)
+      .sort((a,b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime());
+  };
+  
+  const chargingDrivers = getDriversByStatus('charging');
+  const waitingDrivers = getDriversByStatus('waiting');
 
   return (
     <Card className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/20">
@@ -159,24 +179,24 @@ export default function StationCard({ station, userId }: StationCardProps) {
         <div className="mt-6">
           <div className="flex justify-between items-center mb-2">
             <h4 className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Driver Queue</h4>
-            <AddDriverDialog stationId={station.id} availablePorts={station.availablePorts} />
+            <AddDriverDialog stationId={station.id} />
           </div>
           <div className="mt-2 space-y-4 text-sm text-muted-foreground bg-card-foreground/5 p-3 rounded-md">
             <div>
               <h5 className="font-semibold text-foreground mb-2">Currently Charging</h5>
               {chargingDrivers.length > 0 ? (
                 <ul className="space-y-2">
-                  {chargingDrivers.map(([driverId, details]) => (
-                    <li key={driverId} className="flex items-start justify-between gap-3 p-2 rounded-md bg-background/50">
+                  {chargingDrivers.map((driver) => (
+                    <li key={driver.driverId} className="flex items-center justify-between gap-3 p-2 rounded-md bg-background/50">
                       <div className="flex items-start gap-3">
                         <User className="h-4 w-4 mt-1 text-primary" />
                         <div>
-                          <p className="font-semibold text-foreground">{details.vehicle}</p>
-                          <p className="text-xs text-muted-foreground">User: {details.userId}</p>
-                          <p className="text-xs text-muted-foreground">Joined: {new Date(details.joinedAt).toLocaleTimeString()}</p>
+                          <p className="font-semibold text-foreground">{driver.vehicle}</p>
+                          <p className="text-xs text-muted-foreground">User: {driver.userId}</p>
+                          <p className="text-xs text-muted-foreground">Joined: {new Date(driver.joinedAt).toLocaleTimeString()}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveDriver(driverId)}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveDriver(driver.driverId)}>
                         <X className="h-4 w-4 text-destructive" />
                       </Button>
                     </li>
@@ -191,17 +211,27 @@ export default function StationCard({ station, userId }: StationCardProps) {
               <h5 className="font-semibold text-foreground mt-4 mb-2">Waiting in Queue</h5>
                {waitingDrivers.length > 0 ? (
                 <ul className="space-y-2">
-                  {waitingDrivers.map(([driverId, details]) => (
-                    <li key={driverId} className="flex items-start justify-between gap-3 p-2 rounded-md bg-background/50">
+                  {waitingDrivers.map((driver) => (
+                    <li key={driver.driverId} className="flex items-center justify-between gap-3 p-2 rounded-md bg-background/50">
                       <div className="flex items-start gap-3">
                         <User className="h-4 w-4 mt-1 text-primary" />
                         <div>
-                          <p className="font-semibold text-foreground">{details.vehicle}</p>
-                          <p className="text-xs text-muted-foreground">User: {details.userId}</p>
-                          <p className="text-xs text-muted-foreground">Joined: {new Date(details.joinedAt).toLocaleTimeString()}</p>
+                          <p className="font-semibold text-foreground">{driver.vehicle}</p>
+                          <p className="text-xs text-muted-foreground">User: {driver.userId}</p>
+                          <p className="text-xs text-muted-foreground">Joined: {new Date(driver.joinedAt).toLocaleTimeString()}</p>
                         </div>
                       </div>
-                      {/* No remove button for waiting drivers */}
+                       <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-auto px-2 py-1 text-xs"
+                        onClick={() => handlePromoteDriver(driver.driverId)}
+                        disabled={station.availablePorts <= 0}
+                        title={station.availablePorts <= 0 ? 'No ports available' : 'Promote to charging'}
+                      >
+                        <ArrowUpCircle className="mr-1 h-3 w-3" />
+                        Promote
+                      </Button>
                     </li>
                   ))}
                 </ul>
