@@ -56,7 +56,8 @@ export async function addDriverToQueue(
 }
 
 /**
- * Removes a driver from the station's queue, creates a ledger entry, sends a receipt, and promotes the next waiting driver if applicable.
+ * Removes a driver from the station's queue, creates a ledger entry, and sends a receipt.
+ * This function no longer auto-promotes; it just frees up a port.
  */
 export async function removeDriverFromQueue(stationId: string, driver: DriverInQueue, ledgerDetails: Omit<LedgerEntry, 'stationId' | 'receiptSent'>) {
   const stationRef = ref(db, `stations/${stationId}`);
@@ -99,46 +100,19 @@ export async function removeDriverFromQueue(stationId: string, driver: DriverInQ
     // You might want to add more robust error handling here, like a retry mechanism.
   }
 
-
   // 3. Remove the driver from queue
   await remove(ref(db, `stations/${stationId}/queue/${driver.driverId}`));
 
-  // 4. Promote next driver or free up port
+  // 4. Free up port if the driver was charging
   if (driver.chargingStatus === 'charging') {
-      const remainingQueueSnapshot = await get(ref(db, `stations/${stationId}/queue`));
-      const remainingQueue = remainingQueueSnapshot.val() || {};
-      
-      const waitingDrivers: DriverInQueue[] = [];
-      for (const id in remainingQueue) {
-        if (remainingQueue[id].chargingStatus === 'waiting') {
-          const priority = await getVehiclePriority(remainingQueue[id].vehicleId);
-          waitingDrivers.push({ driverId: id, ...remainingQueue[id], priority });
-        }
-      }
-
-      waitingDrivers.sort((a, b) => {
-        if (a.priority === 'emergency' && b.priority !== 'emergency') return -1;
-        if (a.priority !== 'emergency' && b.priority === 'emergency') return 1;
-        return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
-      });
-
-      if (waitingDrivers.length > 0) {
-        const [nextDriver] = waitingDrivers;
-        // Promote the next driver to charging. Port count remains same.
-        await update(ref(db, `stations/${stationId}/queue/${nextDriver.driverId}`), {
-          chargingStatus: 'charging',
-        });
-      } else {
-        // No one is waiting, so a port becomes available.
-        const newAvailablePorts = Math.min(station.totalPorts, (station.availablePorts || 0) + 1);
-        const updates: Partial<Pick<Station, 'availablePorts' | 'status'>> = {
-          availablePorts: newAvailablePorts,
-        };
-        if (newAvailablePorts > 0 && station.status !== 'offline') {
-          updates.status = 'available';
-        }
-        await update(stationRef, updates);
-      }
+    const newAvailablePorts = Math.min(station.totalPorts, (station.availablePorts || 0) + 1);
+    const updates: Partial<Pick<Station, 'availablePorts' | 'status'>> = {
+      availablePorts: newAvailablePorts,
+    };
+    if (newAvailablePorts > 0 && station.status !== 'offline') {
+      updates.status = 'available';
+    }
+     await update(stationRef, updates);
   }
 
   return { success: true, message: 'Driver session completed and billed.' };
