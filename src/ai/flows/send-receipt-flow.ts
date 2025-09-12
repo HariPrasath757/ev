@@ -97,13 +97,13 @@ const sendReceiptFlow = ai.defineFlow(
     outputSchema: z.object({ success: z.boolean() }),
   },
   async (input) => {
-    const { driverName, stationName, vehicleName, startTime, endTime, unitsConsumed, cost, platformFee, totalBill } = input;
+    const { driverName, driverEmail, stationName, vehicleName, startTime, endTime, unitsConsumed, cost, platformFee, totalBill } = input;
 
     const subject = `EV Charging Receipt – ${stationName}`;
     const body = `
 Hello ${driverName},
 
-Thank you for using ${stationName}.
+Thank you for using ${stationName}. This receipt has been sent to ${driverEmail}.
 
 Vehicle: ${vehicleName}
 Charging Duration: ${new Date(startTime).toLocaleString()} – ${new Date(endTime).toLocaleString()}
