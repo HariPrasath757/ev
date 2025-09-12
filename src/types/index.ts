@@ -61,6 +61,7 @@ export interface Report {
 }
 
 export interface LedgerEntry {
+  id?: string;
   stationId: string;
   userId: string;
   vehicleId: string;

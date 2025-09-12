@@ -12,7 +12,6 @@ import {
   Star,
   BatteryCharging,
   User,
-  X,
   ArrowUpCircle,
   ShieldAlert,
 } from 'lucide-react';
@@ -21,10 +20,11 @@ import { Badge } from '@/components/ui/badge';
 import type { Station, DriverInQueue, Vehicle } from '@/types';
 import ReportIssueDialog from './report-issue-dialog';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { removeDriverFromQueue, promoteDriverToCharging } from '@/actions/queue-management';
+import { promoteDriverToCharging } from '@/actions/queue-management';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '../ui/button';
 import AddDriverDialog from './add-driver-dialog';
+import BillingDialog from './billing-dialog';
 import { useState, useEffect } from 'react';
 import { ref, get } from 'firebase/database';
 import { db } from '@/lib/firebase/config';
@@ -91,20 +91,26 @@ export default function StationCard({ station, userId }: StationCardProps) {
   const statusInfo = getStatusInfo(station);
   const placeholderImage = PlaceHolderImages.find(img => img.id === station.id) || PlaceHolderImages[0];
   const { toast } = useToast();
+  
   const [drivers, setDrivers] = useState<DriverInQueue[]>([]);
+  const [vehicles, setVehicles] = useState<Record<string, Vehicle>>({});
+  
+  const [isBillingOpen, setIsBillingOpen] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<DriverInQueue | null>(null);
 
   useEffect(() => {
     const processQueue = async () => {
+      const vehiclesSnapshot = await get(ref(db, 'vehicles'));
+      const vehiclesData = vehiclesSnapshot.val() || {};
+      setVehicles(vehiclesData);
+
       if (!station.queue) {
         setDrivers([]);
         return;
       }
-      
-      const vehiclesSnapshot = await get(ref(db, 'vehicles'));
-      const vehicles = vehiclesSnapshot.val() || {};
 
       const processedDrivers: DriverInQueue[] = Object.entries(station.queue).map(([driverId, details]) => {
-        const vehicle: Vehicle | undefined = vehicles[details.vehicleId];
+        const vehicle: Vehicle | undefined = vehiclesData[details.vehicleId];
         return {
           driverId,
           ...details,
@@ -117,14 +123,10 @@ export default function StationCard({ station, userId }: StationCardProps) {
     processQueue();
   }, [station.queue]);
 
-  const handleRemoveDriver = async (driverId: string) => {
-    const result = await removeDriverFromQueue(station.id, driverId);
-    if (result.success) {
-      toast({ title: 'Success', description: result.message });
-    } else {
-      toast({ variant: 'destructive', title: 'Error', description: result.message });
-    }
-  };
+  const handleOpenBilling = (driver: DriverInQueue) => {
+    setSelectedDriver(driver);
+    setIsBillingOpen(true);
+  }
 
   const handlePromoteDriver = async (driverId: string) => {
     const result = await promoteDriverToCharging(station.id, driverId);
@@ -224,8 +226,8 @@ export default function StationCard({ station, userId }: StationCardProps) {
                           <p className="text-xs text-muted-foreground">Joined: {new Date(driver.joinedAt).toLocaleTimeString()}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveDriver(driver.driverId)}>
-                        <X className="h-4 w-4 text-destructive" />
+                       <Button variant="destructive" size="sm" className="h-auto px-2 py-1 text-xs" onClick={() => handleOpenBilling(driver)}>
+                        Complete Charging
                       </Button>
                     </li>
                   ))}
@@ -280,6 +282,15 @@ export default function StationCard({ station, userId }: StationCardProps) {
       <CardFooter>
         <ReportIssueDialog stationId={station.id} stationName={station.name} userId={userId} />
       </CardFooter>
+       {selectedDriver && (
+        <BillingDialog
+          open={isBillingOpen}
+          onOpenChange={setIsBillingOpen}
+          station={station}
+          driver={selectedDriver}
+          vehicle={vehicles[selectedDriver.vehicleId]}
+        />
+      )}
     </Card>
   );
 }

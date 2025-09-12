@@ -1,8 +1,9 @@
 'use server';
 
 import { db } from '@/lib/firebase/config';
-import type { Station, QueueEntry, LedgerEntry, Vehicle } from '@/types';
+import type { Station, LedgerEntry, Vehicle, DriverInQueue } from '@/types';
 import { get, ref, set, push, remove, update } from 'firebase/database';
+import { sendReceipt } from '@/ai/flows/send-receipt-flow';
 
 async function getVehiclePriority(vehicleId: string): Promise<Vehicle['priority']> {
   const vehicleRef = ref(db, `vehicles/${vehicleId}`);
@@ -30,7 +31,7 @@ export async function addDriverToQueue(
   const station: Station = { id: stationId, ...snapshot.val() };
   
   const newDriverRef = push(ref(db, `stations/${stationId}/queue`));
-  const newDriver: QueueEntry = {
+  const newDriver: Omit<DriverInQueue, 'driverId' | 'priority'> = {
     ...vehicleInfo,
     joinedAt: new Date().toISOString(),
     chargingStatus: station.availablePorts > 0 ? 'charging' : 'waiting',
@@ -55,9 +56,9 @@ export async function addDriverToQueue(
 }
 
 /**
- * Removes a driver from the station's queue, creates a ledger entry, and promotes the next waiting driver if applicable.
+ * Removes a driver from the station's queue, creates a ledger entry, sends a receipt, and promotes the next waiting driver if applicable.
  */
-export async function removeDriverFromQueue(stationId: string, driverId: string) {
+export async function removeDriverFromQueue(stationId: string, driver: DriverInQueue, ledgerDetails: Omit<LedgerEntry, 'stationId' | 'receiptSent'>) {
   const stationRef = ref(db, `stations/${stationId}`);
   const stationSnapshot = await get(stationRef);
 
@@ -66,47 +67,52 @@ export async function removeDriverFromQueue(stationId: string, driverId: string)
   }
 
   const station: Station = { id: stationId, ...stationSnapshot.val() };
-  const queue = station.queue || {};
-  const driverToRemove = queue[driverId];
 
-  if (!driverToRemove) {
-    return { success: false, message: 'Driver not found in queue.' };
-  }
-
-  // Create Ledger Entry
-  const unitsConsumed = Math.round(Math.random() * 50) + 5; // Placeholder
-  const cost = unitsConsumed * station.pricePerKWh;
-  const platformFee = 5;
-  const totalBill = cost + platformFee;
-  
+  // 1. Create Ledger Entry
   const ledgerEntry: Omit<LedgerEntry, 'id'> = {
+    ...ledgerDetails,
     stationId,
-    userId: driverToRemove.userId,
-    vehicleId: driverToRemove.vehicleId,
-    vehicleName: driverToRemove.vehicleName,
-    unitsConsumed,
-    cost,
-    platformFee,
-    totalBill,
-    startTime: driverToRemove.joinedAt,
-    endTime: new Date().toISOString(),
-    receiptSent: false,
+    receiptSent: false, // Will be updated after email is sent
   };
   
   const ledgerRef = push(ref(db, 'ledger'));
   await set(ledgerRef, ledgerEntry);
+  const ledgerId = ledgerRef.key!;
 
-  // Remove the driver from queue
-  await remove(ref(db, `stations/${stationId}/queue/${driverId}`));
+  // 2. Send Receipt Email via Genkit Flow
+  try {
+    const driverSnapshot = await get(ref(db, `drivers/${driver.userId}`));
+    if (driverSnapshot.exists()) {
+      const driverData = driverSnapshot.val();
+      await sendReceipt({
+        stationName: station.name,
+        driverName: driverData.name,
+        driverEmail: driverData.email,
+        vehicleName: driver.vehicleName,
+        ...ledgerDetails,
+      });
+      // Mark receipt as sent
+      await update(ref(db, `ledger/${ledgerId}`), { receiptSent: true });
+    }
+  } catch (error) {
+    console.error("Failed to send receipt, but continuing process.", error);
+    // You might want to add more robust error handling here, like a retry mechanism.
+  }
 
-  // If the removed driver was charging, we might need to promote someone.
-  if (driverToRemove.chargingStatus === 'charging') {
-      const remainingQueue = (await get(ref(db, `stations/${stationId}/queue`))).val() || {};
-      const waitingDrivers = [];
+
+  // 3. Remove the driver from queue
+  await remove(ref(db, `stations/${stationId}/queue/${driver.driverId}`));
+
+  // 4. Promote next driver or free up port
+  if (driver.chargingStatus === 'charging') {
+      const remainingQueueSnapshot = await get(ref(db, `stations/${stationId}/queue`));
+      const remainingQueue = remainingQueueSnapshot.val() || {};
+      
+      const waitingDrivers: DriverInQueue[] = [];
       for (const id in remainingQueue) {
         if (remainingQueue[id].chargingStatus === 'waiting') {
           const priority = await getVehiclePriority(remainingQueue[id].vehicleId);
-          waitingDrivers.push({ id, ...remainingQueue[id], priority });
+          waitingDrivers.push({ driverId: id, ...remainingQueue[id], priority });
         }
       }
 
@@ -119,7 +125,7 @@ export async function removeDriverFromQueue(stationId: string, driverId: string)
       if (waitingDrivers.length > 0) {
         const [nextDriver] = waitingDrivers;
         // Promote the next driver to charging. Port count remains same.
-        await update(ref(db, `stations/${stationId}/queue/${nextDriver.id}`), {
+        await update(ref(db, `stations/${stationId}/queue/${nextDriver.driverId}`), {
           chargingStatus: 'charging',
         });
       } else {
