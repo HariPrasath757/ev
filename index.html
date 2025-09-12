@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EV Route Planner - Login</title>
+<style>
+  body { margin:0; font-family:sans-serif; background:#f0f4f8; display:flex; justify-content:center; align-items:center; height:100vh; }
+  .container { background:white; padding:30px 40px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.12); width:360px; }
+  h2 { text-align:center; margin-bottom:20px; color:#136AEC; }
+  label { display:block; margin-top:12px; font-weight:600; font-size:0.9em; }
+  select, input { width:100%; padding:10px; margin-top:6px; border-radius:8px; border:1px solid #d1d5db; font-size:0.95em; }
+  button { width:100%; padding:12px; margin-top:18px; background:#136AEC; color:white; font-weight:700; border:none; border-radius:8px; cursor:pointer; font-size:1em; }
+  button:hover { background:#0f54c4; }
+  .small { font-size:0.85em; color:#6b7280; margin-top:6px; }
+  .field-row { display:flex; gap:10px; }
+  .half { flex:1; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h2>EV Route Planner</h2>
+
+  <form id="userForm">
+    <label for="username">Username</label>
+    <input type="text" id="username" placeholder="Enter your name" required>
+
+    <label for="vehicleSelect">Select Vehicle</label>
+    <select id="vehicleSelect" required>
+      <option value="">Loading vehicles...</option>
+    </select>
+    <div class="small">Vehicle capacity (kWh) will auto-fill after selection.</div>
+
+    <div class="field-row">
+      <div class="half">
+        <label for="currentBattery">Current Battery (%)</label>
+        <input type="number" id="currentBattery" min="0" max="100" placeholder="50" required>
+      </div>
+      <div class="half">
+        <label for="email">Email (for receipt)</label>
+        <input type="email" id="email" placeholder="you@example.com" required>
+      </div>
+    </div>
+
+    <!-- Hidden capacity field auto filled -->
+    <input type="hidden" id="batteryCapacity" />
+
+    <button type="submit">Proceed to Map</button>
+  </form>
+  <div class="small" style="margin-top:10px;">Tip: Choose your vehicle from the dropdown (populated from DB).</div>
+</div>
+
+<script>
+const DB_BASE = "https://evolvenet-81c14-default-rtdb.firebaseio.com";
+const VEHICLES_PATH = "/vehicles.json";
+
+// Populate vehicle dropdown from /vehicles
+async function loadVehicles() {
+  const sel = document.getElementById("vehicleSelect");
+  sel.innerHTML = '<option value="">Loading vehicles...</option>';
+  try {
+    const res = await fetch(DB_BASE + VEHICLES_PATH);
+    const json = await res.json();
+    sel.innerHTML = '<option value="">-- Select Vehicle --</option>';
+    if(!json){ sel.innerHTML = '<option value="">No vehicles found</option>'; return; }
+    for(const vid in json){
+      const v = json[vid];
+      const opt = document.createElement("option");
+      opt.value = vid;
+      opt.text = v.name + (v.priority === "emergency" ? " ⚡ (Emergency)" : "");
+      opt.dataset.capacity = v.capacityKWh || "";
+      opt.dataset.priority = v.priority || "normal";
+      sel.appendChild(opt);
+    }
+  } catch(e){
+    sel.innerHTML = '<option value="">Failed to load vehicles</option>';
+    console.error(e);
+  }
+}
+
+// When vehicle selected, auto-fill hidden capacity
+document.getElementById("vehicleSelect").addEventListener("change", function(){
+  const idx = this.selectedIndex;
+  const opt = this.options[idx];
+  const cap = opt ? opt.dataset.capacity : "";
+  document.getElementById("batteryCapacity").value = cap || "";
+});
+
+// On form submit, store selected values and redirect
+document.getElementById("userForm").addEventListener("submit", function(evt){
+  evt.preventDefault();
+  const username = document.getElementById("username").value.trim();
+  const vehicleId = document.getElementById("vehicleSelect").value;
+  const vehicleName = document.getElementById("vehicleSelect").selectedOptions[0] ? document.getElementById("vehicleSelect").selectedOptions[0].text : "";
+  const currentBattery = Number(document.getElementById("currentBattery").value);
+  const batteryCapacity = Number(document.getElementById("batteryCapacity").value);
+  const email = document.getElementById("email").value.trim();
+
+  if(!username || !vehicleId || isNaN(currentBattery) || currentBattery < 0 || currentBattery > 100 || !email){
+    alert("Please fill all fields correctly (username, vehicle, battery %, and email).");
+    return;
+  }
+
+  // Save into localStorage for map.html
+  localStorage.setItem("username", username);
+  localStorage.setItem("vehicleId", vehicleId);
+  // vehicleName may contain emoji; store plain text
+  localStorage.setItem("vehicleName", vehicleName.replace(/⚡.*$/,'').trim());
+  localStorage.setItem("currentBattery", String(currentBattery));
+  localStorage.setItem("batteryCapacity", String(batteryCapacity));
+  localStorage.setItem("userEmail", email);
+
+  // Redirect to map
+  window.location.href = "map.html";
+});
+
+// initial load
+loadVehicles();
+</script>
+
+</body>
+</html>

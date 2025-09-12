@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Route Planner</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+  body { margin:0; font-family: "Segoe UI", sans-serif; }
+  #map { height: 100vh; width: 100%; }
+
+  #instructionBar {
+    position: fixed;
+    top: 0; left: 50%; transform: translateX(-50%);
+    background: #136AEC; color: white;
+    padding: 10px 20px; font-weight: bold; font-size: 1em;
+    border-radius: 0 0 12px 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    z-index: 1200;
+  }
+
+  #userPanel {
+    position: fixed; left: 10px; top: 60px;
+    background: white; padding: 8px 14px;
+    border: 2px solid #136AEC; border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    font-weight: bold; z-index: 1100;
+  }
+
+  #insightPanel {
+    position: fixed; left: 10px; bottom: 10px;
+    background: white; padding: 12px 16px;
+    border: 2px solid #136AEC; border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    font-weight: bold; z-index: 1100; display: none;
+    min-width: 260px;
+  }
+
+  .loading {
+    color: #136AEC; font-weight: bold;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+  }
+
+  .bookBtn {
+    margin-top: 8px; padding: 7px 14px;
+    background: #136AEC; color: white;
+    font-size: 0.9em; border: none; border-radius: 6px;
+    cursor: pointer; transition: 0.2s;
+    display: block; width: 100%;
+  }
+  .bookBtn:hover { background: #0f54c4; }
+
+  .recommendedGlow {
+    filter: drop-shadow(0 0 8px #28a745);
+  }
+
+  .stationTable {
+    font-size: 0.85em; width: 100%; border-collapse: collapse; margin-top: 4px;
+  }
+  .stationTable td { padding: 2px 4px; }
+  .stationStatus {
+    font-weight: bold; margin-bottom: 6px;
+  }
+  .statusActive { color: #28a745; }
+  .statusBusy { color: #ff9800; }
+  .statusInactive { color: #d32f2f; }
+
+</style>
+</head>
+<body>
+
+<div id="instructionBar">📍 Click on the map to set your destination</div>
+<div id="map"></div>
+<div id="userPanel">Hello, <span id="username"></span></div>
+<div id="insightPanel"><span id="insightText"></span></div>
+
+<script>
+const DB_BASE = "https://evolvenet-81c14-default-rtdb.firebaseio.com/";
+const STATIONS_PATH = "/stations";
+const TIME_FACTOR = 1.8;
+const batteryCapacity = Number(localStorage.getItem("batteryCapacity") || 60);
+let currentBattery = Number(localStorage.getItem("currentBattery") || 50);
+
+let map = L.map('map').setView([13.28, 80.04], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+let userLatLng = null;
+let destination = null;
+let destinationMarker = null;
+let stationData = {};
+let stationMarkers = {};
+let routeLines = [];
+let username = localStorage.getItem("username") || "User";
+document.getElementById("username").innerText = username;
+
+const stationIcon = L.icon({
+  iconUrl:"https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+  iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
+});
+const destinationIcon = L.icon({
+  iconUrl:"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+  iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-32]
+});
+
+// User location
+navigator.geolocation.getCurrentPosition(pos=>{
+  userLatLng = [pos.coords.latitude,pos.coords.longitude];
+  L.circle(userLatLng,{radius:20,color:'blue',fillOpacity:0.5}).addTo(map);
+  map.setView(userLatLng,14);
+}, ()=>{ alert("⚠️ Location access denied"); });
+
+// Destination click
+map.on("click", function(e){
+  destination = {lat:e.latlng.lat, lng:e.latlng.lng, name:"Destination"};
+  if(destinationMarker) map.removeLayer(destinationMarker);
+  destinationMarker = L.marker([destination.lat,destination.lng],{icon:destinationIcon}).addTo(map)
+                      .bindPopup("🎯 Destination").openPopup();
+
+  document.getElementById("insightText").innerHTML = `<span class="loading">⏳ Generating station recommendation...</span>`;
+  document.getElementById("insightPanel").style.display="block";
+  computeRecommendations(); 
+});
+
+// Fetch stations
+async function fetchStations(){
+  try{
+    const res = await fetch(`${DB_BASE}${STATIONS_PATH}.json`);
+    const json = await res.json();
+    if(!json) return;
+    stationData = json;
+    renderStations();
+  } catch(e){ console.error(e); }
+}
+
+function renderStations(){
+  for(const id in stationData){
+    const s = stationData[id]; if(!s||!s.location) continue;
+    if(!stationMarkers[id]){
+      const m = L.marker([s.location.lat,s.location.lng],{icon:stationIcon}).addTo(map);
+      m.on('click',()=>onStationClick(id));
+      stationMarkers[id] = m;
+    } else {
+      stationMarkers[id].setLatLng([s.location.lat,s.location.lng]);
+    }
+  }
+}
+
+// Compute route
+async function computeRoute(origin,dest){
+  if(!origin || !dest) return {dist:0,time:0,coords:[]};
+  const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${origin[1]},${origin[0]};${dest[1]},${dest[0]}?geometries=geojson`);
+  const data = await res.json();
+  if(data.routes && data.routes.length>0){
+    const r = data.routes[0];
+    return {dist:r.distance/1000, time:(r.duration/60)*TIME_FACTOR, coords:r.geometry.coordinates.map(c=>[c[1],c[0]])};
+  }
+  return {dist:0,time:0,coords:[]};
+}
+
+// Station click
+async function onStationClick(id){
+  if(!userLatLng) return;
+  const s = stationData[id];
+  if(!s || !s.location) return;
+
+  routeLines.forEach(l=>map.removeLayer(l));
+  routeLines = [];
+
+  const toStop = await computeRoute(userLatLng,[s.location.lat,s.location.lng]);
+  const toDest = destination ? await computeRoute([s.location.lat,s.location.lng],[destination.lat,destination.lng]) : {dist:0,time:0,coords:[]};
+  const wait = s.waitTime || 0;
+  const avgChargingTime = ((batteryCapacity*0.8) - (batteryCapacity*(currentBattery/100))) / 50 * 60;
+  const cost = (batteryCapacity*(0.8-currentBattery/100))*s.pricePerKWh;
+  const totalTime = toStop.time + toDest.time + wait + avgChargingTime;
+  const metric = computeMetric(totalTime,toStop.dist,wait,avgChargingTime,cost,s.trustScore);
+
+  // Draw route
+  if(toStop.coords.length>0) routeLines.push(L.polyline(toStop.coords,{color:'blue'}).addTo(map));
+  if(toDest.coords.length>0) routeLines.push(L.polyline(toDest.coords,{color:'green'}).addTo(map));
+
+  // Status
+  let statusClass="statusActive",statusText="Active";
+  if(s.availablePorts===0){statusClass="statusBusy";statusText="Busy";}
+  if(s.status==="inactive"){statusClass="statusInactive";statusText="Inactive";}
+
+  // Popup
+  const popupDiv = document.createElement('div');
+  popupDiv.innerHTML = `
+    <div class="stationStatus ${statusClass}">Status: ${statusText}</div>
+    <b>${s.name}</b><br>
+    <table class="stationTable">
+      <tr><td>To Station:</td><td>${toStop.dist.toFixed(2)} km (~${toStop.time.toFixed(1)} min)</td></tr>
+      <tr><td>To Destination:</td><td>${toDest.dist.toFixed(2)} km (~${toDest.time.toFixed(1)} min)</td></tr>
+      <tr><td>Wait:</td><td>${wait} min</td></tr>
+      <tr><td>Charging:</td><td>${avgChargingTime.toFixed(0)} min</td></tr>
+      <tr><td>Total Time:</td><td>${totalTime.toFixed(1)} min</td></tr>
+      <tr><td>Cost:</td><td>₹${cost.toFixed(2)}</td></tr>
+      <tr><td>Trust:</td><td>${s.trustScore}</td></tr>
+      <tr><td>Metric:</td><td>${metric.toFixed(3)}</td></tr>
+    </table>
+  `;
+  const btn = document.createElement('button');
+  btn.innerText="⚡ Book";
+  btn.className="bookBtn";
+  btn.onclick=()=>bookStation(id);
+  popupDiv.appendChild(btn);
+
+  stationMarkers[id].bindPopup(popupDiv).openPopup();
+}
+
+// Balanced Metric calculation (0-1)
+function computeMetric(T,D,W,Ch,C,Trust){
+  // Normalize values (assume max reasonable values)
+  const Tn=T/120;      // max 2h
+  const Dn=D/50;       // max 50km
+  const Wn=W/60;       // max 1h wait
+  const Chn=Ch/120;    // max 2h charge
+  const Cn=C/2000;     // max cost
+  const Trustn=Trust/5; // max 5
+
+  // Weighted by priority (roughly equal but small differences)
+  return 0.20*Tn + 0.15*Dn + 0.15*Wn + 0.15*Chn + 0.15*Cn + 0.20*(1-Trustn);
+}
+
+// Recommendations
+async function computeRecommendations(){
+  if(!userLatLng||!destination) return;
+  const results=[];
+
+  for(const id in stationData){
+    const s = stationData[id]; if(!s||!s.location) continue;
+    const [toStop,toDest]=await Promise.all([
+      computeRoute(userLatLng,[s.location.lat,s.location.lng]),
+      computeRoute([s.location.lat,s.location.lng],[destination.lat,destination.lng])
+    ]);
+    const wait = s.waitTime ||0;
+    const avgChargingTime = ((batteryCapacity*0.8) - (batteryCapacity*(currentBattery/100)))/50*60;
+    const cost=(batteryCapacity*(0.8-currentBattery/100))*s.pricePerKWh;
+    const totalTime=toStop.time+toDest.time+wait+avgChargingTime;
+    const metric = computeMetric(totalTime,toStop.dist,wait,avgChargingTime,cost,s.trustScore);
+    results.push({id,metric,name:s.name});
+  }
+
+  if(results.length>0){
+    results.sort((a,b)=>a.metric-b.metric);
+    const best = results[0];
+
+    // Glow marker
+    Object.values(stationMarkers).forEach(m=>m.getElement()?.classList.remove("recommendedGlow"));
+    stationMarkers[best.id].getElement()?.classList.add("recommendedGlow");
+
+    document.getElementById("insightText").innerHTML = `✅ Recommended: <b>${best.name}</b> | Metric: ${best.metric.toFixed(3)}`;
+    document.getElementById("insightPanel").style.display="block";
+  }
+}
+
+// Booking
+async function bookStation(stationId){
+  const stationRef = `${DB_BASE}/stations/${stationId}/queue.json`;
+  const userData={
+    userId: username,
+    vehicle: localStorage.getItem("vehicle") || "EV",
+    joinedAt: new Date().toISOString(),
+    chargingStatus: "waiting"
+  };
+  try{
+    await fetch(stationRef,{method:'POST',body:JSON.stringify(userData)});
+    alert(`Added to ${stationData[stationId].name} queue!`);
+    fetchStations();
+  } catch(e){ console.error(e); alert("Booking failed."); }
+}
+
+fetchStations();
+setInterval(fetchStations,10000);
+</script>
+</body>
+</html>
