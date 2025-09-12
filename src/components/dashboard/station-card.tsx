@@ -11,6 +11,7 @@ import {
   Users,
   ShieldCheck,
   BatteryCharging,
+  User,
 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -112,14 +113,27 @@ export default function StationCard({ station, userId }: StationCardProps) {
           </div>
         </div>
         
-        {statusInfo.text === 'Occupied' && station.queue && Object.keys(station.queue).length > 0 && (
+        {statusInfo.text === 'Occupied' && (
           <div className="mt-6">
             <h4 className="font-semibold flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Waiting Queue</h4>
-            <ul className="mt-2 space-y-1 text-sm text-muted-foreground list-disc list-inside bg-white/5 p-3 rounded-md">
-              {Object.entries(station.queue).map(([driverId, driverName]) => (
-                <li key={driverId}>{driverName}</li>
-              ))}
-            </ul>
+            <div className="mt-2 space-y-2 text-sm text-muted-foreground bg-white/5 p-3 rounded-md">
+              {station.queue && Object.keys(station.queue).length > 0 ? (
+                <ul className="space-y-2">
+                  {Object.entries(station.queue).map(([driverId, details]) => (
+                    <li key={driverId} className="flex items-start gap-3">
+                      <User className="h-4 w-4 mt-0.5 text-primary" />
+                      <div>
+                        <p className="font-semibold text-foreground">{details.vehicle}</p>
+                        <p className="text-xs text-muted-foreground">User: {details.userId}</p>
+                        <p className="text-xs text-muted-foreground">Joined: {new Date(details.joinedAt).toLocaleString()}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No queue</p>
+              )}
+            </div>
           </div>
         )}
       </CardContent>

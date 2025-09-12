@@ -3,6 +3,12 @@ export interface User {
   username: string;
 }
 
+export interface QueueEntry {
+  joinedAt: string;
+  userId: string;
+  vehicle: string;
+}
+
 export interface Station {
   id: string;
   name: string;
@@ -16,7 +22,7 @@ export interface Station {
   availablePorts: number;
   pricePerKWh: number;
   trustScore: number;
-  queue?: { [driverId: string]: string };
+  queue?: { [driverId: string]: QueueEntry };
 }
 
 export interface Report {
@@ -24,7 +30,7 @@ export interface Report {
   stationId: string;
   issue: string;
   timestamp: string;
-  userId: string;
+  userId:string;
   status: 'open' | 'in-progress' | 'resolved';
   severity: 'low' | 'medium' | 'high';
 }
