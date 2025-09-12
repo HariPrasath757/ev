@@ -3,19 +3,19 @@
     {
       "id": "station1",
       "description": "A modern EV charging station at night in a city.",
-      "imageUrl": "https://picsum.photos/seed/101/600/400",
+      "imageUrl": "https://btcpower.com/wp-content/uploads/2025/02/btc-blog-commercial-chargers.jpg",
       "imageHint": "night city ev"
     },
     {
       "id": "station2",
       "description": "EV chargers in a covered parking garage.",
-      "imageUrl": "https://picsum.photos/seed/102/600/400",
+      "imageUrl": "https://www.constructionweekonline.in/cloud/2021/11/24/PjWBXtc7-4evchargingstations_1-1.jpg",
       "imageHint": "parking garage ev"
     },
     {
       "id": "station3",
       "description": "A row of EV chargers in front of a modern building.",
-      "imageUrl": "https://picsum.photos/seed/103/600/400",
+      "imageUrl": "https://www.npga.org/wp-content/uploads/2022/08/iStock-1351236560-scaled.jpg",
       "imageHint": "ev charger row"
     }
   ]
