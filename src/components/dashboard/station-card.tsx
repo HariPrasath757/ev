@@ -35,7 +35,7 @@ const getStatusInfo = (station: Station) => {
   if (station.availablePorts > 0) {
     return {
       text: 'Available',
-      color: 'accent',
+      color: 'default',
       icon: <Plug className="h-4 w-4" />,
     };
   }
@@ -47,21 +47,33 @@ const getStatusInfo = (station: Station) => {
 };
 
 const TrustScore = ({ score }: { score: number }) => {
-    const totalStars = 5;
-    const filledStars = Math.round(score);
-    const emptyStars = totalStars - filledStars;
-  
-    return (
-      <div className="flex items-center gap-1">
-        {[...Array(filledStars)].map((_, i) => (
-          <Star key={`filled-${i}`} className="h-5 w-5 text-yellow-400 fill-yellow-400" />
-        ))}
-        {[...Array(emptyStars)].map((_, i) => (
-          <Star key={`empty-${i}`} className="h-5 w-5 text-muted-foreground" />
-        ))}
+  const totalStars = 5;
+  const starPercentage = (score / totalStars) * 100;
+  const starPercentageRounded = `${Math.round(starPercentage / 10) * 10}%`;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center">
+        <div className="relative">
+          <div className="flex text-muted-foreground">
+            {[...Array(totalStars)].map((_, i) => (
+              <Star key={`empty-${i}`} className="h-5 w-5" />
+            ))}
+          </div>
+          <div
+            className="absolute top-0 left-0 h-full overflow-hidden flex"
+            style={{ width: starPercentageRounded }}
+          >
+            {[...Array(totalStars)].map((_, i) => (
+              <Star key={`filled-${i}`} className="h-5 w-5 flex-shrink-0 text-yellow-400 fill-yellow-400" />
+            ))}
+          </div>
+        </div>
       </div>
-    );
-  };
+      <span className="font-semibold text-foreground">{score.toFixed(1)}/5</span>
+    </div>
+  );
+};
 
 export default function StationCard({ station, userId }: StationCardProps) {
   const statusInfo = getStatusInfo(station);
