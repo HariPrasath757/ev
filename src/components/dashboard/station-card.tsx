@@ -94,8 +94,8 @@ export default function StationCard({ station, userId }: StationCardProps) {
     }
   };
 
-  const chargingDrivers = station.queue ? Object.entries(station.queue).filter(([, d]) => d.status === 'charging') : [];
-  const waitingDrivers = station.queue ? Object.entries(station.queue).filter(([, d]) => d.status === 'waiting') : [];
+  const chargingDrivers = station.queue ? Object.entries(station.queue).filter(([, d]) => d.chargingStatus === 'charging') : [];
+  const waitingDrivers = station.queue ? Object.entries(station.queue).filter(([, d]) => d.chargingStatus === 'waiting') : [];
 
 
   return (

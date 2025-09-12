@@ -25,10 +25,10 @@ export async function addDriverToQueue(
   }
 
   const newDriverRef = push(ref(db, `stations/${stationId}/queue`));
-  const newDriver: QueueEntry = {
+  const newDriver: Omit<QueueEntry, 'chargingStatus'> & { chargingStatus: 'charging' | 'waiting' } = {
     ...vehicleInfo,
     joinedAt: new Date().toISOString(),
-    status: 'charging', 
+    chargingStatus: 'charging', 
   };
   
   await set(newDriverRef, newDriver);
