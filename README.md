@@ -1,6 +1,6 @@
 # EvolveNet – EV Route Planner & Station Management
 
-![EvolveNet Banner](assets/banner.png) <!-- Optional: Add project banner image -->
+
 
 EvolveNet is a real-time web application designed for **Electric Vehicle (EV) users and station operators**. It helps users find optimal charging stations, plan routes, and book charging slots, while empowering station operators with real-time monitoring, queue management, and billing analytics.
 
@@ -8,13 +8,29 @@ EvolveNet is a real-time web application designed for **Electric Vehicle (EV) us
 
 ## 🔹 Features
 
-### **User App**
+### **EV Station App**
 - **Login Page**
-  - Enter username, email, select vehicle, and current battery percentage.
-  - Vehicle data dynamically fetched from Firebase.
+
+<img width="567" height="697" alt="image" src="https://github.com/user-attachments/assets/7e509483-611b-455e-a0e2-66120c22bee7" />
+
+
+  - Enter username, password. email, select vehicle, and current battery percentage.
+  - Station data dynamically fetched from Firebase.
+
+
+<img width="545" height="850" alt="image" src="https://github.com/user-attachments/assets/76524546-d521-48df-a3fe-aaa13cc02896" />
+  
 - **Map Page**
+  - Map Login
+    - Enter username, password. email, select vehicle, and current battery percentage.
+      
+<img width="614" height="594" alt="image" src="https://github.com/user-attachments/assets/c385bfa0-098f-4d7a-a31a-8150d1dd517f" />
+
   - Displays user location and EV stations on an interactive map.
   - Click to set destination and compute routes.
+  - 
+    <img width="1919" height="870" alt="image" src="https://github.com/user-attachments/assets/e397fbb3-40b7-4ebf-9bb7-d2a949d90047" />
+    
   - Intelligent **station recommendations** based on:
     - Distance & travel time
     - Wait time at station
@@ -84,3 +100,14 @@ EvolveNet is a real-time web application designed for **Electric Vehicle (EV) us
 ```bash
 git clone https://github.com/yourusername/EvolveNet.git
 cd EvolveNet
+
+
+<img width="545" height="839" alt="image" src="https://github.com/user-attachments/assets/c772c5eb-f992-4f8d-9a3a-c1737491ae8f" />
+
+
+
+
+
+
+
+
